@@ -14,8 +14,8 @@ using System.Net;
 using System.Threading;
 using Newtonsoft.Json;
 using System.Text;
-//using Microsoft.AspNetCore.Authentication.JwtBearer3.1;
-//using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 namespace Client
 {
     internal class Program
