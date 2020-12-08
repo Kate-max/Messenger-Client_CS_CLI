@@ -18,7 +18,6 @@ using System.Text;
 //using Microsoft.IdentityModel.Tokens;
 namespace Client
 {
-
     internal class Program
 
     {
