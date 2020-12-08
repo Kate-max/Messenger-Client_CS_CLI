@@ -5,26 +5,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-
-
-
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-
 using System.IO;
-
 using System.Net;
-
 using System.Threading;
-
-
-
 using Newtonsoft.Json;
-
-
-
 using System.Text;
 //using Microsoft.AspNetCore.Authentication.JwtBearer3.1;
 //using Microsoft.IdentityModel.Tokens;
