@@ -11,21 +11,37 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using System.Net;
-using System.Threading;
 using Newtonsoft.Json;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Terminal.Gui;
+using System.Net.Cache;
+using System.Timers;
+using System.Threading;
 namespace Client
 {
-    internal class Program
+    class Program
 
     {
-        ///	<summary>
-        ///	Точка входа
-        ///	</summary>
-        private static void Main()
 
+        private static MenuBar menu;
+        private static Window winMain;
+
+        private static Window winMessages;
+
+        private static Label labelUsername;
+
+        private static Label labelMessage;
+        private static TextField fieldUsername;
+
+        private static TextField fieldMessage;
+
+        private static Button btnSend;
+
+        private static List<Message> messages = new List<Message>();
+
+        static void Main(string[] args)
         {
 
             ConfigManager.LoadConfig();
@@ -78,12 +94,206 @@ namespace Client
                     // ignored
 
                 }
-        }
+        
+            Application.Init();
+            //
+            //ColorScheme colorDark = new ColorScheme();
 
-        ///	<summary>
-        ///	Запрос у пользователя уникального ника/пароля
-        ///	</summary>
+            //colorDark.Normal = new Terminal.Gui.Attribute(Color.White, Color.DarkGray);
+            //
+            //	Создание верхнего меню приложения 
+            menu = new MenuBar(new MenuBarItem[] {
 
+            new MenuBarItem("_App", new MenuItem[] { new MenuItem("_Quit", "Close the app", Application.RequestStop),}),}) 
+            { 
+                X=0,Y=0,
+                Width = Dim.Fill(), Height = 1,
+            };
+    Application.Top.Add(menu);
+
+//	Создание главного окна
+winMain = new Window()
+    {
+
+        X = 0,
+
+Y = 1,
+Width = Dim.Fill(),
+ 
+Height = Dim.Fill(),
+
+Title = "DotChat",
+
+};
+    //winMain.ColorScheme = colorDark;
+
+    Application.Top.Add(winMain);
+
+//	Создание окна с сообщениями 
+            winMessages = new Window() { X=0, Y=0,
+ Width = winMain.Width, Height = winMain.Height - 2, };
+winMain.Add(winMessages);
+
+//	Создание надписи с username 
+            labelUsername = new Label() {
+                X = 0,
+                Y = Pos.Bottom(winMain) - 5, Width = 15,
+                Height = 1,
+                Text = "Username:",
+
+TextAlignment = TextAlignment.Right,
+};
+winMain.Add(labelUsername);
+
+//	Создание надписи с message 
+            labelMessage = new Label()
+
+{
+    X = 0,
+
+Y = Pos.Bottom(winMain) - 4, Width = 15,
+Height = 1,
+Text = "Message:",
+
+TextAlignment = TextAlignment.Right,
+};
+winMain.Add(labelMessage);
+
+//	Создание поля ввода username 
+            fieldUsername = new TextField()
+
+{
+    X = 15,
+
+Y = Pos.Bottom(winMain) - 5, Width = winMain.Width - 15, Height = 1,
+
+};
+winMain.Add(fieldUsername);
+
+//	Создание поля ввода message 
+            fieldMessage = new TextField()
+
+{
+    X = 15,
+
+Y = Pos.Bottom(winMain) - 4, Width = winMain.Width - 15, Height = 1,
+
+};
+winMain.Add(fieldMessage);
+
+//	Создание кнопки отправки
+btnSend = new Button()
+
+{
+
+    X = Pos.Right(winMain) - 15,
+    Y = Pos.Bottom(winMain) - 4,
+
+    Width = 15,
+
+    Height = 1,
+
+    Text = "	SEND	",
+
+};
+
+btnSend.Clicked += OnBtnSendClick;
+winMain.Add(btnSend);
+
+//	Создание цикла получения сообщений 
+            int lastMsgID = 0;
+            System.Timers.Timer updateLoop = new System.Timers.Timer();
+            updateLoop.Interval = 1000;
+
+updateLoop.Elapsed += (object sender, ElapsedEventArgs e) => {
+    Message msg = GetMessage(lastMsgID);
+
+    if (msg != null)
+    {
+        messages.Add(msg); MessagesUpdate(); lastMsgID++;
+    }
+};
+
+updateLoop.Start();
+
+Application.Run();
+
+}
+
+//	Реакция на клик кнопки 
+        static void OnBtnSendClick() {
+
+if (fieldUsername.Text.Length != 0 && fieldMessage.Text.Length != 0)
+{
+    Message msg = new Message()
+    {
+
+        username = fieldUsername.Text.ToString(),
+        text = fieldMessage.Text.ToString(),
+
+    };
+
+    SendMessage(msg); fieldMessage.Text = "";
+
+}
+}
+
+//	Синхронизирует список сообщений с представлением
+
+static void MessagesUpdate()
+{
+
+    //winMessages.RemoveAll();
+    int offset = 0;
+
+    for (var i = messages.Count - 1; i >= 0; i--)
+    {
+        View msg = new View()
+        {
+            X = 0,
+            Y = offset,
+
+            Width = winMessages.Width,
+
+            Height = 1,
+
+            Text = $"[{messages[i].username}] {messages[i].text}",
+        };
+
+        winMessages.Add(msg);
+
+        offset++;
+    }
+
+    Application.Refresh();
+
+}
+
+//	Отправляет сообщение на сервер 
+        static void SendMessage(Message msg) {
+
+WebRequest req = WebRequest.Create("http://localhost:5000/api/chat"); req.Method = "POST";
+
+string postData = JsonConvert.SerializeObject(msg); byte[] bytes = Encoding.UTF8.GetBytes(postData); req.ContentType = "application/json"; req.ContentLength = bytes.Length;
+
+Stream reqStream = req.GetRequestStream(); reqStream.Write(bytes); reqStream.Close();
+
+req.GetResponse();
+
+}
+
+//	Получает сообщение с сервера 
+        static Message GetMessage(int id) {
+
+WebRequest req = WebRequest.Create($"http://localhost:5000/api/chat/{id}"); WebResponse resp = req.GetResponse();
+
+string smsg = new StreamReader(resp.GetResponseStream()).ReadToEnd();
+
+if (smsg == "Not found") return null;
+
+return JsonConvert.DeserializeObject<Message>(smsg);
+
+}
         private static void Login()
 
         {
@@ -91,21 +301,24 @@ namespace Client
             do
 
             {
-                var httpWebRequest = (HttpWebRequest)
 
-                WebRequest.Create($"http://{ConfigManager.Config.IP}:{ConfigManager.Config.Port}/api/Login");
+                //HttpWebRequest httpWebRequest = (HttpWebRequest)
 
+                //WebRequest.Create($"http://{ConfigManager.Config.IP}:{ConfigManager.Config.Port}/api/Login");
+                Uri httpWebRequest = new Uri($"http://{ConfigManager.Config.IP}:{ConfigManager.Config.Port}/api/Login");
 
-                httpWebRequest.ContentType = "application/json"; httpWebRequest.Method = "POST";
+                WebRequest wr = WebRequest.Create(httpWebRequest);
+
+                wr.ContentType = "application/json"; wr.Method = "POST";
 
                 string result;
 
-                var regData = GetRegData(httpWebRequest);
+                var regData = GetRegData((HttpWebRequest)wr);
 
                 try
                 {
 
-                    var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse(); var streamReader =
+                    var httpResponse = (HttpWebResponse)wr.GetResponse(); var streamReader =
 
                    new StreamReader(httpResponse.GetResponseStream() ?? throw new InvalidOperationException());
 
@@ -244,330 +457,4 @@ namespace Client
         }
 
     }
-
 }
-
-
-
-
-
-namespace Client
-
-{
-    internal class ServerResponse
-
-    {
-
-        ///	<summary>
-        ///	Предыдущая длина списка сообщений
-
-        /// </summary>
-
-        private static int _len;
-
-        ///	<summary>
-        ///	Отправка сигнала о том что пользователь онлайн
-        ///	</summary>
-        private static async Task PostOnline()
-
-        {
-
-            try
-            {
-
-                var httpWebRequest =
-
-                (HttpWebRequest)
-
-                WebRequest.Create($"http://{ConfigManager.Config.IP}:{ConfigManager.Config.Port}/api/Onli ne");
-
-                httpWebRequest.ContentType = "application/json"; httpWebRequest.Method = "POST"; httpWebRequest.Headers.Add("Authorization", "Bearer " +
-
-                ConfigManager.Config.Token);
-
-                var httpResponse = (HttpWebResponse)httpWebRequest.GetResponse();
-
-                var streamReader = new StreamReader(httpResponse.GetResponseStream()); var result = await streamReader.ReadToEndAsync();
-
-                if (result != "ok") throw new Exception("Something went wrong");
-
-            }
-            catch (Exception)
-
-            {
-
-                // ignored
-            }
-
-        }
-
-        ///	<summary>
-        ///	Цикл отправки сигнала что пользователь онлайн
-
-        ///	</summary>
-        public static async void OnlineUpdater()
-
-        {
-
-            while (true)
-
-                try
-                {
-
-                    await PostOnline();
-
-                    Thread.Sleep(500);
-                }
-
-                catch (Exception)
-
-                {
-                    // ignored
-
-                }
-
-        }
-
-        ///	<summary>
-        ///	Получает ответ на GET запрос
-        ///	</summary>
-        ///	<param name="uri">Ссылка на HTTP</param>
-        ///	<returns>Ответ на GET запрос</returns>
-
-        public static async Task<string> GetAsync(string uri)
-        {
-
-            var request = (HttpWebRequest)WebRequest.Create(uri); request.AutomaticDecompression = DecompressionMethods.GZip |
-           DecompressionMethods.Deflate;
-
-            using var response = (HttpWebResponse)await request.GetResponseAsync(); await using var stream = response.GetResponseStream(); using var reader = new StreamReader(stream);
-
-            return await reader.ReadToEndAsync();
-
-        }
-
-        ///	<summary>
-        ///	Цикл запроса обновления истории сообщений
-
-        /// </summary>
-
-        public static async void GetHistoryMessages()
-
-        {
-            while (true)
-
-            {
-
-                await UpdateHistory();
-
-                Thread.Sleep(ConfigManager.Config.MillisecondsSleep);
-
-            }
-        }
-
-        ///	<summary>
-        ///	Функция обновления сообщений
-        ///	</summary>
-
-        public static async Task UpdateHistory()
-
-        {
-            var res = await
-
-            GetAsync($"http://{ConfigManager.Config.IP}:{ConfigManager.Config.Port}/api/Chat");
-
-            if (res != "[]")
-
-            {
-
-                var messages = JsonConvert.DeserializeObject<List<Message>>(res);
-
-                if (_len != messages.Count)
-
-                {
-
-                    var x = Console.CursorLeft;
-                    var y = Console.CursorTop;
-
-                    Console.MoveBufferArea(0, y, x, 1, 0, messages.Count + 1);
-
-                    var history = "";
-
-                    foreach (var message in messages)
-                        history += message.ToString().PadRight(Console.BufferWidth - 1) +
-
-                        "\n";
-
-                    Console.SetCursorPosition(0, 1); Console.WriteLine(history); Console.SetCursorPosition(x, messages.Count + 1);
-
-                    _len = messages.Count;
-                }
-
-            }
-
-        }
-    }
-
-}
-
-
-
-namespace Client
-{
-
-    ///	<summary>
-    ///	<para>Класс Сообщение</para>
-    ///	</summary>
-
-    public class Message
-
-    {
-        ///	<summary>
-        ///	<br>Ts - время отправки сообщения (по серверу)</br>
-        ///	</summary>
-
-        public int Ts { get; set; }
-
-        ///	<summary>
-        ///	<br>Name - имя клиента</br>
-        ///	</summary>
-
-        public string Name { get; set; }
-
-        /// <summary>
-
-        ///	<br>Text - сообщение клиента</br>
-        ///	</summary>
-
-        public string Text { get; set; }
-
-        ///	<summary>
-        ///	<br>ToString - функция преобразования полей класса в строку для печати</br>
-        ///	</summary>
-        ///	<returns> [Time] Name: Text </returns>
-        public override string ToString()
-
-        {
-
-            return $"[{new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds(Ts)}] {Name}:{ Text}";
-        }
-
-    }
-
-}
-
-
-
-namespace Client
-{
-
-    ///	<summary>
-    ///	Класс хранения, сохранения и загрузки конфигурации
-    ///	</summary>
-    internal class ConfigManager
-
-    {
-
-        ///	<summary>
-        ///	Путь к файлу конфигурации
-        ///	</summary>
-
-        private const string Path = @"config.json";
-
-        ///	<summary>
-        ///	Текущие настройки клиента
-        ///	</summary>
-        public static Config Config = new Config();
-
-        ///	<summary>
-        ///	Запись настроек в файл
-        ///	</summary>
-
-        public static async void WriteConfig()
-        {
-
-            await using var streamWriter = new StreamWriter(Path);
-
-            await streamWriter.WriteAsync(JsonConvert.SerializeObject(Config));
-        }
-
-        ///	<summary>
-        ///	Загрузка настроек из файла
-        ///	</summary>
-
-        public static async void LoadConfig()
-
-        {
-            if (!File.Exists(Path)) WriteConfig();
-
-            using var streamReader = new StreamReader(Path); Config = JsonConvert.DeserializeObject<Config>(await
-
-            streamReader.ReadToEndAsync());
-
-        }
-
-    }
-
-    ///	<summary>
-    ///	Класс настроек
-
-    ///	</summary> 
-    internal class Config
-
-    {
-        ///	<summary>
-
-        ///	MillisecondsSleep - время обновления истории сообщений
-        ///	</summary>
-
-        public int MillisecondsSleep { get; set; } = 200;
-
-        ///	<summary>
-        ///	Логин пароль пользователя
-        ///	</summary>
-
-        public RegData RegData { get; set; } = new RegData { Username = "Anonymous", Password = "password" };
-
-        ///	<summary>
-        ///	Токен необходимый для отправки сообщений
-        ///	</summary>
-        public string Token { get; set; }
-
-        ///	<summary>
-        ///	Адрес сервера
-
-        ///	</summary>
-
-        public string IP { get; set; } = "localhost";
-
-        ///	<summary>
-        ///	Порт сервера
-        ///	</summary>
-        public int Port { get; set; } = 5000;
-
-    }
-
-    ///	<summary>
-    ///	Класс для хранения связки логин/пароль
-    ///	</summary>
-    public class RegData
-
-    {
-
-        ///	<summary>
-        ///	Логин уникальный псевдоним пользователя
-        ///	</summary>
-
-        public string Username { get; set; }
-
-        ///	<summary>
-        ///	Пароль - необходим для доступа
-        ///	</summary>
-        public string Password { get; set; }
-
-    }
-}
-
-
-
-
